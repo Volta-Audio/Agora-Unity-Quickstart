@@ -26,6 +26,15 @@ public class RtmpStreaming : MonoBehaviour
     private static string channelName = "Agora_Channel";
     private uint remoteUid = 0;
     private bool isStreaming = false;
+    public int videoBitrate = 5000;
+    public int videoWidth = 1920;
+    public int videoHeight = 1080;
+    public int videoFrameRate = 30;
+    public FRAME_RATE videoEncoderFrameRate;
+    public AUDIO_CODEC_PROFILE_TYPE audioCodecProfileType;
+    public int audioBitrate = 128;
+    public int audioChannels = 2;
+    public AUDIO_SAMPLE_RATE_TYPE audioSampleRateType;
 
     // Use this for initialization
     void Start()
@@ -56,8 +65,8 @@ public class RtmpStreaming : MonoBehaviour
         mRtcEngine.SetClientRole(CLIENT_ROLE_TYPE.CLIENT_ROLE_BROADCASTER);
         mRtcEngine.SetVideoEncoderConfiguration(new VideoEncoderConfiguration
         {
-            dimensions = new VideoDimensions {width = 720, height = 640},
-            frameRate = FRAME_RATE.FRAME_RATE_FPS_24
+            dimensions = new VideoDimensions {width = videoWidth, height = videoHeight},
+            frameRate = videoEncoderFrameRate
         });
         mRtcEngine.EnableAudio();
         mRtcEngine.EnableVideo();
@@ -83,24 +92,24 @@ public class RtmpStreaming : MonoBehaviour
         }
         
         var lt = new LiveTranscoding();
-        lt.videoBitrate = 400;
+        lt.videoBitrate = videoBitrate;
         lt.videoCodecProfile = VIDEO_CODEC_PROFILE_TYPE.VIDEO_CODEC_PROFILE_HIGH;
         lt.videoGop = 30;
-        lt.videoFramerate = 24;
+        lt.videoFramerate = videoFrameRate;
         lt.lowLatency = false;
-        lt.audioSampleRate = AUDIO_SAMPLE_RATE_TYPE.AUDIO_SAMPLE_RATE_44100;
-        lt.audioBitrate = 48;
-        lt.audioChannels = 1;
-        lt.audioCodecProfile = AUDIO_CODEC_PROFILE_TYPE.AUDIO_CODEC_PROFILE_LC_AAC;
+        lt.audioSampleRate = audioSampleRateType;
+        lt.audioBitrate = audioBitrate;
+        lt.audioChannels = audioChannels;
+        lt.audioCodecProfile = audioCodecProfileType;
         lt.liveStreamAdvancedFeatures = new LiveStreamAdvancedFeature[0];
         
-        var localUesr = new TranscodingUser()
+        var localUser = new TranscodingUser()
         {
             uid = 0,
             x = 0,
             y = 0,
-            width = 360,
-            height = 640,
+            width = videoWidth,
+            height = videoHeight,
             audioChannel = 0,
             alpha = 1.0,
         };
@@ -112,22 +121,22 @@ public class RtmpStreaming : MonoBehaviour
                 uid = remoteUid,
                 x = 360,
                 y = 0,
-                width = 360,
-                height = 640,
+                width = videoWidth,
+                height = videoHeight,
                 audioChannel = 0,
                 alpha = 1.0,
             };
             lt.userCount = 2;
-            lt.width = 720;
-            lt.height = 640;
-            lt.transcodingUsers = new[] {localUesr, remoteUser};
+            lt.width = videoWidth;
+            lt.height = videoHeight;
+            lt.transcodingUsers = new[] {localUser, remoteUser};
         }
         else
         {
             lt.userCount = 1;
-            lt.width = 360;
-            lt.height = 640;
-            lt.transcodingUsers = new[] {localUesr};
+            lt.width = videoWidth;
+            lt.height = videoHeight;
+            lt.transcodingUsers = new[] {localUser};
         }
         
         mRtcEngine.SetLiveTranscoding(lt);

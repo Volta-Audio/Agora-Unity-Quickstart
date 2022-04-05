@@ -13,11 +13,15 @@ public class RtmpStreaming : MonoBehaviour
 {
     [SerializeField] private string APP_ID = "";
 
+    public string tokenGenerationURL = "http://3.128.168.232:8080/rtc/unity3d/publisher/uid/0/";
     [SerializeField] private string TOKEN = "";
 
     [SerializeField] private string CHANNEL_NAME = "YOUR_CHANNEL_NAME";
 
     [SerializeField] private string RTMP_URL = "";
+    public string YouTube_RTMP_URL = "";
+    public string Twitch_RTMP_URL = "";
+
 
     public Text logText;
     private Logger logger;
@@ -35,6 +39,25 @@ public class RtmpStreaming : MonoBehaviour
     public int audioBitrate = 128;
     public int audioChannels = 2;
     public AUDIO_SAMPLE_RATE_TYPE audioSampleRateType;
+    public AUDIO_PROFILE_TYPE audioProfileType;
+    public AUDIO_SCENARIO_TYPE audioScenarioType;
+    public string audioDeviceStringToMatch = "VoiceMeeter";
+    public string loopbackAudioDeviceName = "Speakers (3- Focusrite Usb Audio)";
+    [Range(0, 100)]
+    public int audioDeviceVolume = 0;
+    public int _audioDeviceVolume = -1;
+    [Range(0, 100)]
+    public int recordingSignalVolume = 0;
+    public int _recordingSignalVolume = -1;
+    [Range(0, 100)]
+    public int loopbackVolume = 100;
+    public int _loopbackVolume = -1;
+    bool updateVolumes = false;
+
+    private AudioRecordingDeviceManager audioRecordingDeviceManager = null;
+    private Dictionary<int, string> audioRecordingDeviceDict = new Dictionary<int, string>();
+
+
 
     // Use this for initialization
     void Start()
@@ -49,6 +72,26 @@ public class RtmpStreaming : MonoBehaviour
     {
         PermissionHelper.RequestMicrophontPermission();
         PermissionHelper.RequestCameraPermission();
+        if (updateVolumes)
+        {
+            if (audioDeviceVolume != _audioDeviceVolume)
+            {
+                audioRecordingDeviceManager.SetAudioRecordingDeviceVolume(audioDeviceVolume);
+                var currentVol = audioRecordingDeviceManager.GetAudioRecordingDeviceVolume();
+                Debug.Log("Current device vol = " + currentVol);
+                _audioDeviceVolume = audioDeviceVolume;
+            }
+            if (loopbackVolume != _loopbackVolume)
+            {
+                mRtcEngine.AdjustLoopbackRecordingSignalVolume(loopbackVolume);
+                _loopbackVolume = loopbackVolume;
+            }
+            if (recordingSignalVolume != _recordingSignalVolume)
+            {
+                mRtcEngine.AdjustRecordingSignalVolume(recordingSignalVolume);
+                _recordingSignalVolume = recordingSignalVolume;
+            }
+        }
     }
 
     void CheckAppId()
@@ -103,6 +146,8 @@ public class RtmpStreaming : MonoBehaviour
         lt.audioCodecProfile = audioCodecProfileType;
         lt.liveStreamAdvancedFeatures = new LiveStreamAdvancedFeature[0];
         
+        mRtcEngine.SetAudioProfile(audioProfileType, audioScenarioType);
+
         var localUser = new TranscodingUser()
         {
             uid = 0,
@@ -145,6 +190,30 @@ public class RtmpStreaming : MonoBehaviour
         if (rc == 0) logger.UpdateLog(string.Format("Error in AddPublishStreamUrl: {0}", RTMP_URL));
     }
 
+    void GetAudioRecordingDevice()
+    {
+        string audioRecordingDeviceName = "";
+        string audioRecordingDeviceId = "";
+        audioRecordingDeviceManager = (AudioRecordingDeviceManager)mRtcEngine.GetAudioRecordingDeviceManager();
+        audioRecordingDeviceManager.CreateAAudioRecordingDeviceManager();
+        int count = audioRecordingDeviceManager.GetAudioRecordingDeviceCount();
+        logger.UpdateLog(string.Format("AudioRecordingDevice count: {0}", count));
+        for (int i = 0; i < count; i++)
+        {
+            audioRecordingDeviceManager.GetAudioRecordingDevice(i, ref audioRecordingDeviceName, ref audioRecordingDeviceId);
+            audioRecordingDeviceDict.Add(i, audioRecordingDeviceId);
+            //logger.UpdateLog(string.Format("----AudioRecordingDevice device index: {0}, name: {1}, id: {2}", i, audioRecordingDeviceName, audioRecordingDeviceId));
+            Debug.Log(string.Format("----AudioRecordingDevice device index: {0}, name: {1}, id: {2}", i, audioRecordingDeviceName, audioRecordingDeviceId));
+            if (audioRecordingDeviceName.Contains(audioDeviceStringToMatch))
+            {
+                var setAudioRecordingDevice = audioRecordingDeviceManager.SetAudioRecordingDevice(audioRecordingDeviceDict[i]);
+                Debug.Log(" *** device selected: " + audioRecordingDeviceName + " // " + audioRecordingDeviceDict[i] + ". Return code = " + setAudioRecordingDevice);
+                audioRecordingDeviceManager.SetAudioRecordingDeviceVolume(audioDeviceVolume);
+                break;
+            }
+        }
+    }
+
     void JoinChannel()
     {
         mRtcEngine.JoinChannelByKey(TOKEN, CHANNEL_NAME, "", 0);
@@ -156,7 +225,18 @@ public class RtmpStreaming : MonoBehaviour
         logger.UpdateLog(string.Format("onJoinChannelSuccess channelName: {0}, uid: {1}, elapsed: {2}", channelName,
             uid, elapsed));
         makeVideoView(0);
+
+        GetAudioRecordingDevice();
+
+        var resultLoopback = mRtcEngine.EnableLoopbackRecording(true, null);
+        var resultLoopbackVolume = mRtcEngine.AdjustLoopbackRecordingSignalVolume(loopbackVolume);
+        Debug.Log($" --*- LOOPBACK {resultLoopback} // Volume: {resultLoopbackVolume}");
+
+        // GetAudioRecordingDeviceName();
+
         StartTranscoding();
+
+        updateVolumes = true;
     }
 
     void OnLeaveChannelHandler(RtcStats stats)
@@ -307,7 +387,7 @@ public class RtmpStreaming : MonoBehaviour
         float yPos = Random.Range(Offset, Screen.height / 2f - Offset);
         Debug.Log("position x " + xPos + " y: " + yPos);
         go.transform.localPosition = new Vector3(xPos, yPos, 0f);
-        go.transform.localScale = new Vector3(3f, 4f, 1f);
+        go.transform.localScale = new Vector3(3.555555f, 2f, 1f);
 
         // configure videoSurface
         VideoSurface videoSurface = go.AddComponent<VideoSurface>();
